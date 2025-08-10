@@ -2,27 +2,54 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Routine Tracker</title>
-  <style>
-    body { font-family: 'Segoe UI', Arial, sans-serif; text-align: center; background: #222; color: #fff; }
-    #timer { font-size: 4em; margin: 30px 0; }
-    #status { font-size: 2em; margin: 8px 0; }
-    #block { font-size: 1.5em; margin: 10px 0; }
-  </style>
+  <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <h1>Routine Tracker</h1>
-  <div id="status"></div>
-  <div id="block"></div>
-  <div id="timer"></div>
+  <header>
+    <nav>
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="projects.html">Projects</a></li>
+        <li><a href="routine.html" class="active">Routine</a></li>
+        <li><a href="about.html">About</a></li>
+        <li><a href="contact.html">Contact</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Routine Tracker</h1>
+    <div id="status" style="font-size: 2em; margin: 1rem 0;"></div>
+    <div id="block" style="font-size: 1.5em; margin-bottom: 1rem;"></div>
+    <div id="timer" style="font-size: 4em; margin: 2rem 0;"></div>
+  </main>
+
+  <footer>
+    <p>&copy; 2025 Collin Flack. All rights reserved.</p>
+  </footer>
+
+  <!-- Audio elements -->
+  <audio id="audio5MinWarning" src="audio/5mins.wav" preload="auto"></audio>
+  <audio id="audioBreakStart" src="audio/breakstart.wav" preload="auto"></audio>
+  <audio id="audioWorkStart" src="audio/workstart.wav" preload="auto"></audio>
 
 <script>
-  const WORK_MIN = 45, BREAK_MIN = 15, TOTAL_BLOCKS = 4;
-  const START_UTC_HOUR = 12, START_UTC_MINUTE = 0; // 12:00 UTC == 7:00 AM America/Chicago (summer)
+  const WORK_MIN = 0.25, BREAK_MIN = 0.25, TOTAL_BLOCKS = 4;
+  const START_UTC_HOUR = 16, START_UTC_MINUTE = 19;
+
+  const audio5MinWarning = document.getElementById('audio5MinWarning');
+  const audioBreakStart = document.getElementById('audioBreakStart');
+  const audioWorkStart = document.getElementById('audioWorkStart');
+
+  let hasWarned5Min = false;
+  let hasPlayedBreakStart = false;
+  let hasPlayedWorkStart = false;
 
   function getTodayStartUTC() {
     const now = new Date();
-    const start = new Date(Date.UTC(
+    return new Date(Date.UTC(
       now.getUTCFullYear(),
       now.getUTCMonth(),
       now.getUTCDate(),
@@ -30,7 +57,6 @@
       START_UTC_MINUTE,
       0
     ));
-    return start;
   }
 
   function getTomorrowStartUTC() {
@@ -67,15 +93,16 @@
     const now = new Date();
     let startUTC = getTodayStartUTC();
 
-    // If before start time today
     if (now < startUTC) {
       document.getElementById('status').textContent = `Routine starts daily at ${String(START_UTC_HOUR).padStart(2,'0')}:${String(START_UTC_MINUTE).padStart(2,'0')} UTC`;
       document.getElementById('block').textContent = '';
       document.getElementById('timer').textContent = formatTimeDiff(startUTC - now);
+      hasWarned5Min = false;
+      hasPlayedBreakStart = false;
+      hasPlayedWorkStart = false;
       return;
     }
 
-    // If after start time, process blocks
     const blocks = getBlocks(startUTC);
     for (const b of blocks) {
       if (now < b.end) {
@@ -86,15 +113,41 @@
           ? `Block: ${b.block} of ${TOTAL_BLOCKS}`
           : `Break (${BREAK_MIN} min)`;
         document.getElementById('timer').textContent = formatTimeDiff(b.end - now);
+
+        if (b.type === "Work") {
+          const timeLeft = (b.end - now) / 60000; // minutes left
+          if (timeLeft <= 5 && !hasWarned5Min) {
+            audio5MinWarning.play();
+            hasWarned5Min = true;
+          }
+        } else {
+          hasWarned5Min = false;
+        }
+
+        if (b.type === "Break" && Math.abs(now - b.start) < 1000 && !hasPlayedBreakStart) {
+          audioBreakStart.play();
+          hasPlayedBreakStart = true;
+        }
+
+        if (b.type === "Work" && Math.abs(now - b.start) < 1000 && !hasPlayedWorkStart) {
+          audioWorkStart.play();
+          hasPlayedWorkStart = true;
+          hasPlayedBreakStart = false;
+          hasWarned5Min = false;
+        }
+
         return;
       }
     }
 
-    // Routine Complete - show next start countdown
     const nextStart = getTomorrowStartUTC();
     document.getElementById('status').textContent = 'Routine Complete';
     document.getElementById('block').textContent = 'Next routine in:';
     document.getElementById('timer').textContent = formatTimeDiff(nextStart - now);
+
+    hasWarned5Min = false;
+    hasPlayedBreakStart = false;
+    hasPlayedWorkStart = false;
   }
 
   updateTimer();
