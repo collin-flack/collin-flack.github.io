@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Routine Tracker</title>
   <style>
     body { font-family: 'Segoe UI', Arial, sans-serif; text-align: center; background: #222; color: #fff; }
@@ -15,83 +15,90 @@
   <div id="status"></div>
   <div id="block"></div>
   <div id="timer"></div>
-  <script>
-    const WORK_MIN = 45, BREAK_MIN = 15, TOTAL_BLOCKS = 4;
-    const TIME_ZONE = 'America/Chicago';
-    const START_HOUR = 7, START_MIN = 0;
 
-    function getTodayStartDate() {
-      let now = new Date();
-      let start = new Date(now);
-      start.setHours(START_HOUR, START_MIN, 0, 0);
-      return new Date(start.toLocaleString("en-US", {timeZone: TIME_ZONE}));
-    }
+<script>
+  const WORK_MIN = 45, BREAK_MIN = 15, TOTAL_BLOCKS = 4;
+  const START_UTC_HOUR = 12, START_UTC_MINUTE = 0; // 12:00 UTC == 7:00 AM America/Chicago (summer)
 
-    function getTomorrowStartDate() {
-      let tmr = new Date();
-      tmr.setDate(tmr.getDate() + 1);
-      tmr.setHours(START_HOUR, START_MIN, 0, 0);
-      return new Date(tmr.toLocaleString("en-US", {timeZone: TIME_ZONE}));
-    }
+  function getTodayStartUTC() {
+    const now = new Date();
+    const start = new Date(Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate(),
+      START_UTC_HOUR,
+      START_UTC_MINUTE,
+      0
+    ));
+    return start;
+  }
 
-    function getBlocks(startDate) {
-      let blocks = [];
-      let t = new Date(startDate);
-      for (let i = 1; i <= TOTAL_BLOCKS; i++) {
-        let workEnd = new Date(t.getTime() + WORK_MIN * 60 * 1000);
-        blocks.push({type: "Work", block: i, start: new Date(t), end: new Date(workEnd)});
-        t = new Date(workEnd);
-        if (i < TOTAL_BLOCKS) {
-          let breakEnd = new Date(t.getTime() + BREAK_MIN * 60 * 1000);
-          blocks.push({type: "Break", block: i, start: new Date(t), end: new Date(breakEnd)});
-          t = new Date(breakEnd);
-        }
+  function getTomorrowStartUTC() {
+    const t = getTodayStartUTC();
+    t.setUTCDate(t.getUTCDate() + 1);
+    return t;
+  }
+
+  function getBlocks(startUTC) {
+    const blocks = [];
+    let cursor = new Date(startUTC);
+    for (let i = 1; i <= TOTAL_BLOCKS; i++) {
+      const workEnd = new Date(cursor.getTime() + WORK_MIN * 60 * 1000);
+      blocks.push({ type: "Work", block: i, start: new Date(cursor), end: workEnd });
+      cursor = new Date(workEnd);
+      if (i < TOTAL_BLOCKS) {
+        const breakEnd = new Date(cursor.getTime() + BREAK_MIN * 60 * 1000);
+        blocks.push({ type: "Break", block: i, start: new Date(cursor), end: breakEnd });
+        cursor = new Date(breakEnd);
       }
-      return blocks;
+    }
+    return blocks;
+  }
+
+  function formatTimeDiff(ms) {
+    const totalSecs = Math.max(0, Math.floor(ms / 1000));
+    const h = String(Math.floor(totalSecs / 3600)).padStart(2, '0');
+    const m = String(Math.floor((totalSecs % 3600) / 60)).padStart(2, '0');
+    const s = String(totalSecs % 60).padStart(2, '0');
+    return `${h}:${m}:${s}`;
+  }
+
+  function updateTimer() {
+    const now = new Date();
+    let startUTC = getTodayStartUTC();
+
+    // If before start time today
+    if (now < startUTC) {
+      document.getElementById('status').textContent = `Routine starts daily at ${String(START_UTC_HOUR).padStart(2,'0')}:${String(START_UTC_MINUTE).padStart(2,'0')} UTC`;
+      document.getElementById('block').textContent = '';
+      document.getElementById('timer').textContent = formatTimeDiff(startUTC - now);
+      return;
     }
 
-    function formatTimeDiff(ms) {
-      let secs = Math.floor(ms / 1000);
-      let h = String(Math.floor(secs / 3600)).padStart(2, '0');
-      let m = String(Math.floor((secs % 3600) / 60)).padStart(2, '0');
-      let s = String(secs % 60).padStart(2, '0');
-      return `${h}:${m}:${s}`;
-    }
-
-    function updateTimer() {
-      let now = new Date();
-      let todayStart = getTodayStartDate();
-
-      if (now < todayStart) {
-        document.getElementById('status').textContent = "Routine starts in:";
-        document.getElementById('timer').textContent = formatTimeDiff(todayStart - now);
-        document.getElementById('block').textContent = "";
+    // If after start time, process blocks
+    const blocks = getBlocks(startUTC);
+    for (const b of blocks) {
+      if (now < b.end) {
+        document.getElementById('status').textContent = b.type === "Work"
+          ? `Work Block ${b.block}`
+          : `Break after Block ${b.block}`;
+        document.getElementById('block').textContent = b.type === "Work"
+          ? `Block: ${b.block} of ${TOTAL_BLOCKS}`
+          : `Break (${BREAK_MIN} min)`;
+        document.getElementById('timer').textContent = formatTimeDiff(b.end - now);
         return;
       }
-
-      let blocks = getBlocks(todayStart);
-      for (let b of blocks) {
-        if (now < b.end) {
-          document.getElementById('status').textContent = b.type === "Work" 
-            ? `Work Block ${b.block}` 
-            : `Break after Block ${b.block}`;
-          document.getElementById('block').textContent = b.type === "Work" 
-            ? `Block: ${b.block} of ${TOTAL_BLOCKS}`
-            : `Break (${BREAK_MIN} minutes)`;
-          document.getElementById('timer').textContent = formatTimeDiff(b.end - now);
-          return;
-        }
-      }
-
-      // Routine complete — show time until next routine
-      let nextStart = getTomorrowStartDate();
-      document.getElementById('status').textContent = "Routine Complete";
-      document.getElementById('block').textContent = "Next routine in:";
-      document.getElementById('timer').textContent = formatTimeDiff(nextStart - now);
     }
 
-    updateTimer();
-    setInterval(updateTimer, 1000);
-  </script>
+    // Routine Complete - show next start countdown
+    const nextStart = getTomorrowStartUTC();
+    document.getElementById('status').textContent = 'Routine Complete';
+    document.getElementById('block').textContent = 'Next routine in:';
+    document.getElementById('timer').textContent = formatTimeDiff(nextStart - now);
+  }
+
+  updateTimer();
+  setInterval(updateTimer, 1000);
+</script>
 </body>
 </html>
