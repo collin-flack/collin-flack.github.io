@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Daily Routine Tracker</title>
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; text-align: center; background: #222; color: #fff; }
+    #timer { font-size: 5em; margin: 30px 0; }
+    #block { font-size: 1.5em; margin: 10px 0; }
+    button { font-size: 1.5em; padding: 10px 25px; background: #36d1c4; color: #fff; border: none; border-radius: 10px; cursor: pointer; }
+    button:disabled { background: #555; }
+  </style>
+</head>
+<body>
+  <h1>Routine Tracker</h1>
+  <div id="block">Block: 1</div>
+  <div id="timer">45:00</div>
+  <button id="startBtn">Start</button>
+  <button id="resetBtn" style="display:none;">Reset</button>
+
+  <script>
+    const WORK_MINUTES = 0.5;
+    const BREAK_MINUTES = 0.5;
+    const TOTAL_BLOCKS = 4;
+
+    let timerEl = document.getElementById('timer');
+    let blockEl = document.getElementById('block');
+    let startBtn = document.getElementById('startBtn');
+    let resetBtn = document.getElementById('resetBtn');
+
+    let interval;
+    let currentBlock = 1;
+    let inBreak = false;
+    let remainingSeconds = WORK_MINUTES * 60;
+
+    function updateTimer() {
+      let min = Math.floor(remainingSeconds / 60);
+      let sec = remainingSeconds % 60;
+      timerEl.textContent = `${String(min).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
+    }
+
+    function nextSession() {
+      if (!inBreak) {
+        // Work finished
+        inBreak = true;
+        remainingSeconds = BREAK_MINUTES * 60;
+        blockEl.textContent = `Break: ${currentBlock}`;
+      } else {
+        // Break finished
+        inBreak = false;
+        currentBlock++;
+        if(currentBlock > TOTAL_BLOCKS){
+          clearInterval(interval);
+          timerEl.textContent = 'Done!';
+          blockEl.textContent = 'Routine Complete';
+          startBtn.style.display = 'none';
+          resetBtn.style.display = 'inline';
+          return;
+        }
+        remainingSeconds = WORK_MINUTES * 60;
+        blockEl.textContent = `Block: ${currentBlock}`;
+      }
+    }
+
+    function timerTick() {
+      if (remainingSeconds > 0) {
+        remainingSeconds--;
+        updateTimer();
+      } else {
+        nextSession();
+        updateTimer();
+      }
+    }
+
+    startBtn.onclick = function() {
+      startBtn.disabled = true;
+      interval = setInterval(timerTick, 1000);
+    };
+
+    resetBtn.onclick = function() {
+      currentBlock = 1;
+      inBreak = false;
+      remainingSeconds = WORK_MINUTES * 60;
+      blockEl.textContent = 'Block: 1';
+      timerEl.textContent = '45:00';
+      startBtn.disabled = false;
+      startBtn.style.display = 'inline';
+      resetBtn.style.display = 'none';
+    };
+
+    updateTimer();
+  </script>
+</body>
+</html>
