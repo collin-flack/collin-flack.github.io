@@ -2,93 +2,96 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Daily Routine Tracker</title>
+  <title>Routine Tracker</title>
   <style>
     body { font-family: 'Segoe UI', Arial, sans-serif; text-align: center; background: #222; color: #fff; }
-    #timer { font-size: 5em; margin: 30px 0; }
+    #timer { font-size: 4em; margin: 30px 0; }
+    #status { font-size: 2em; margin: 8px 0; }
     #block { font-size: 1.5em; margin: 10px 0; }
-    button { font-size: 1.5em; padding: 10px 25px; background: #36d1c4; color: #fff; border: none; border-radius: 10px; cursor: pointer; }
-    button:disabled { background: #555; }
   </style>
 </head>
 <body>
-  <h1>Routine Tracker</h1>
-  <div id="block">Block: 1</div>
-  <div id="timer">45:00</div>
-  <button id="startBtn">Start</button>
-  <button id="resetBtn" style="display:none;">Reset</button>
-
+  <h1>Daily Routine Tracker</h1>
+  <div id="status"></div>
+  <div id="block"></div>
+  <div id="timer"></div>
   <script>
-    const WORK_MINUTES = 0.5;
-    const BREAK_MINUTES = 0.5;
-    const TOTAL_BLOCKS = 4;
+    const WORK_MIN = 0.25, BREAK_MIN = 0.1, TOTAL_BLOCKS = 4;
+    const TIME_ZONE = 'America/Chicago';
+    const START_HOUR = 10, START_MIN = 25;
 
-    let timerEl = document.getElementById('timer');
-    let blockEl = document.getElementById('block');
-    let startBtn = document.getElementById('startBtn');
-    let resetBtn = document.getElementById('resetBtn');
+    function getTodayStartDate() {
+      let now = new Date();
+      let start = new Date(now);
+      start.setHours(START_HOUR, START_MIN, 0, 0);
+      return new Date(start.toLocaleString("en-US", {timeZone: TIME_ZONE}));
+    }
 
-    let interval;
-    let currentBlock = 1;
-    let inBreak = false;
-    let remainingSeconds = WORK_MINUTES * 60;
+    function getTomorrowStartDate() {
+      let tmr = new Date();
+      tmr.setDate(tmr.getDate() + 1);
+      tmr.setHours(START_HOUR, START_MIN, 0, 0);
+      return new Date(tmr.toLocaleString("en-US", {timeZone: TIME_ZONE}));
+    }
+
+    function getBlocks(startDate) {
+      let blocks = [];
+      let t = new Date(startDate);
+      for (let i = 1; i <= TOTAL_BLOCKS; i++) {
+        let workEnd = new Date(t.getTime() + WORK_MIN * 60 * 1000);
+        blocks.push({type: "Work", block: i, start: new Date(t), end: new Date(workEnd)});
+        t = new Date(workEnd);
+        if (i < TOTAL_BLOCKS) {
+          let breakEnd = new Date(t.getTime() + BREAK_MIN * 60 * 1000);
+          blocks.push({type: "Break", block: i, start: new Date(t), end: new Date(breakEnd)});
+          t = new Date(breakEnd);
+        }
+      }
+      return blocks;
+    }
+
+    function formatTimeDiff(ms) {
+      let secs = Math.floor(ms / 1000);
+      let h = String(Math.floor(secs / 3600)).padStart(2, '0');
+      let m = String(Math.floor((secs % 3600) / 60)).padStart(2, '0');
+      let s = String(secs % 60).padStart(2, '0');
+      return `${h}:${m}:${s}`;
+    }
 
     function updateTimer() {
-      let min = Math.floor(remainingSeconds / 60);
-      let sec = remainingSeconds % 60;
-      timerEl.textContent = `${String(min).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
-    }
+      let now = new Date();
+      let todayStart = getTodayStartDate();
 
-    function nextSession() {
-      if (!inBreak) {
-        // Work finished
-        inBreak = true;
-        remainingSeconds = BREAK_MINUTES * 60;
-        blockEl.textContent = `Break: ${currentBlock}`;
-      } else {
-        // Break finished
-        inBreak = false;
-        currentBlock++;
-        if(currentBlock > TOTAL_BLOCKS){
-          clearInterval(interval);
-          timerEl.textContent = 'Done!';
-          blockEl.textContent = 'Routine Complete';
-          startBtn.style.display = 'none';
-          resetBtn.style.display = 'inline';
+      if (now < todayStart) {
+        document.getElementById('status').textContent = "Routine starts in:";
+        document.getElementById('timer').textContent = formatTimeDiff(todayStart - now);
+        document.getElementById('block').textContent = "";
+        return;
+      }
+
+      let blocks = getBlocks(todayStart);
+      for (let b of blocks) {
+        if (now < b.end) {
+          document.getElementById('status').textContent = b.type === "Work" 
+            ? `Work Block ${b.block}` 
+            : `Break after Block ${b.block}`;
+          document.getElementById('block').textContent = b.type === "Work" 
+            ? `Block: ${b.block} of ${TOTAL_BLOCKS}`
+            : `Break (${BREAK_MIN} minutes)`;
+          document.getElementById('timer').textContent = formatTimeDiff(b.end - now);
           return;
         }
-        remainingSeconds = WORK_MINUTES * 60;
-        blockEl.textContent = `Block: ${currentBlock}`;
       }
+
+      // Routine complete — show time until next routine
+      let nextStart = getTomorrowStartDate();
+      document.getElementById('status').textContent = "Routine Complete";
+      document.getElementById('block').textContent = "Next routine in:";
+      document.getElementById('timer').textContent = formatTimeDiff(nextStart - now);
     }
-
-    function timerTick() {
-      if (remainingSeconds > 0) {
-        remainingSeconds--;
-        updateTimer();
-      } else {
-        nextSession();
-        updateTimer();
-      }
-    }
-
-    startBtn.onclick = function() {
-      startBtn.disabled = true;
-      interval = setInterval(timerTick, 1000);
-    };
-
-    resetBtn.onclick = function() {
-      currentBlock = 1;
-      inBreak = false;
-      remainingSeconds = WORK_MINUTES * 60;
-      blockEl.textContent = 'Block: 1';
-      timerEl.textContent = '45:00';
-      startBtn.disabled = false;
-      startBtn.style.display = 'inline';
-      resetBtn.style.display = 'none';
-    };
 
     updateTimer();
+    setInterval(updateTimer, 1000);
   </script>
 </body>
 </html>
